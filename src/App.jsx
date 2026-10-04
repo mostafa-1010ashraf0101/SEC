@@ -15,36 +15,9 @@ const ADMIN_ACCOUNTS = [
   { username: "dev", password: "mostafa1512" }
 ];
 
-const DEFAULT_CATEGORIES = [
-  { id: 'sec', name: 'مذكرات وكتب SEC' },
-  { id: 'tools', name: 'حاسبات وأدوات' },
-  { id: 'supplies', name: 'مستلزمات مكتبية' }
-];
+const DEFAULT_CATEGORIES = [];
 
-const DEFAULT_PRODUCTS = [
-  {
-    id: '1',
-    name: 'مذكرة المراجعة النهائية - الرياضيات',
-    category: 'sec',
-    price: 85,
-    description: 'مراجعة شاملة لجميع أجزاء المنهج مع حل أسئلة الامتحانات السابقة.',
-    image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&auto=format&fit=crop&q=60',
-    badge: 'الأكثر مبيعاً',
-    inStock: true,
-    rating: 5
-  },
-  {
-    id: '2',
-    name: 'حاسبة علمية متطورة Casio',
-    category: 'tools',
-    price: 450,
-    description: 'حاسبة برمجية معتمدة للامتحانات الرسمية.',
-    image: 'https://images.unsplash.com/photo-1587145820266-a5951ee6f620?w=400&auto=format&fit=crop&q=60',
-    badge: 'جديد',
-    inStock: true,
-    rating: 4.8
-  }
-];
+const DEFAULT_PRODUCTS = [];
 
 export default function App() {
   const [isAdminPath, setIsAdminPath] = useState(false);
