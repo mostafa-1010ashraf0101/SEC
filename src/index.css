@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sec-gold: #D4AF37;
+  --color-sec-gold-light: #FFD700;
+  --color-sec-navy: #0a192f;
+  --color-sec-navy-dark: #050b14;
+  --color-sec-cyan: #00f2fe;
+}
