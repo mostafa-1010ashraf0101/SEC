@@ -1,21 +1,52 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ShoppingCart, Trash2, X, GraduationCap, 
-  Search, Plus, ShieldCheck,
-  Package, LogOut, Layers, BarChart3,
-  Sun, Moon, CheckCircle, MessageSquare, Clock,
-  ShoppingBag, Send, AlertCircle, Star, Filter, Eye, Check, Activity, User, CreditCard, Truck, PhoneCall,
-  DollarSign, TrendingUp, Bell, CheckSquare, RefreshCw, PieChart
+  ShoppingCart, Trash2, X, Search, Plus, ShieldCheck,
+  Package, LogOut, Layers, BarChart3, Edit, Image as ImageIcon,
+  Sun, Moon, MessageSquare, Clock, ArrowRight,
+  ShoppingBag, Send, Star, Filter, Eye, Activity, CreditCard, Truck, PhoneCall,
+  DollarSign, Bell, RefreshCw, BookOpen, Monitor, Gamepad2, Sparkles, CheckCircle2,
+  Headphones, Tag, ChevronRight, UserCheck, Code, GraduationCap, ClipboardList, Landmark, Flame, ArrowLeft, ExternalLink
 } from 'lucide-react';
 
-// حسابات الأدمن المتاحة
 const ADMIN_ACCOUNTS = [
   { username: "admin", password: "123" },
   { username: "dev", password: "mostafa1512" }
 ];
 
-const DEFAULT_CATEGORIES = [];
+const STORE_CATEGORIES = [
+  { id: 'cat-1', name: 'كتب خارجية', icon: BookOpen },
+  { id: 'cat-2', name: 'اكواد', icon: Code },
+  { id: 'cat-3', name: 'School Supplies', icon: GraduationCap },
+  { id: 'cat-4', name: 'كتب مدرسين', icon: UserCheck },
+  { id: 'cat-5', name: 'كتب تقيمات', icon: ClipboardList },
+  { id: 'cat-6', name: 'كتب نهج الازهر', icon: Landmark }
+];
+
+const DEFAULT_BANNERS = [
+  {
+    id: 'b1',
+    title: 'خصم يصل إلى 25% على الكتب الخارجية',
+    subtitle: 'احصل على أفضل المناهج والكتب الخارجية لجميع المراحل الدراسية بأفضل سعر.',
+    badge: 'عرض لفترة محدودة',
+    bgGradient: 'from-blue-900 via-indigo-900 to-purple-950',
+    borderColor: 'border-blue-500/30',
+    productId: '',
+    imageUrl: '',
+    linkUrl: ''
+  },
+  {
+    id: 'b2',
+    title: 'تفعيل أكواد المنصات والدروس فوراً',
+    subtitle: 'شحن ومتابعة لحظية لأكواد المحاضرات والمنصات التعليمية المعتمدة.',
+    badge: 'تفعيل فوري ⚡',
+    bgGradient: 'from-indigo-900 via-purple-900 to-pink-950',
+    borderColor: 'border-indigo-500/30',
+    productId: '',
+    imageUrl: '',
+    linkUrl: ''
+  }
+];
 
 const DEFAULT_PRODUCTS = [];
 
@@ -37,15 +68,26 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
 
-  // LocalStorage States
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('sec_categories');
-    return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.map(c => ({
+        ...c,
+        icon: STORE_CATEGORIES.find(sc => sc.name === c.name)?.icon || Sparkles
+      }));
+    }
+    return STORE_CATEGORIES;
   });
 
   const [products, setProducts] = useState(() => {
     const saved = localStorage.getItem('sec_products');
     return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
+  });
+
+  const [banners, setBanners] = useState(() => {
+    const saved = localStorage.getItem('sec_banners');
+    return saved ? JSON.parse(saved) : DEFAULT_BANNERS;
   });
 
   const [orders, setOrders] = useState(() => {
@@ -61,7 +103,7 @@ export default function App() {
   const [activityLogs, setActivityLogs] = useState(() => {
     const saved = localStorage.getItem('sec_activity_logs');
     return saved ? JSON.parse(saved) : [
-      { id: 'LOG-1', user: 'system', action: 'تهيئة النظام وسجل العمليات', timestamp: new Date().toLocaleString('ar-EG') }
+      { id: 'LOG-1', user: 'system', action: 'تشغيل واجهة متجر SEC والمزامنة اللحظية', timestamp: new Date().toLocaleString('ar-EG') }
     ];
   });
 
@@ -74,21 +116,25 @@ export default function App() {
   const [adminSearchTerm, setAdminSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [toastMessage, setToastMessage] = useState('');
+  const [activeBanner, setActiveBanner] = useState(0);
 
-  // Checkout Form States
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
   const [checkoutStep, setCheckoutStep] = useState('cart'); 
   const [paymentMethod, setPaymentMethod] = useState('cod'); 
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', address: '' });
 
-  // Form States
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newComplaint, setNewComplaint] = useState({ name: '', phone: '', message: '' });
+  
   const [newProduct, setNewProduct] = useState({ 
-    name: '', category: categories[0]?.id || 'sec', price: '', description: '', image: '', badge: 'جديد', inStock: true 
+    name: '', category: categories[0]?.id || 'cat-1', price: '', description: '', imagesInput: '', badge: 'جديد', inStock: true, isTopSelling: false
   });
 
-  // الصوت والتنبيه اللحظي للطلبات الجديدة
-  const prevOrdersLength = useRef(orders.length);
+  const [bannerForm, setBannerForm] = useState({
+    id: null, title: '', subtitle: '', badge: 'عرض خاص', productId: '', bgGradient: 'from-blue-900 via-indigo-900 to-purple-950', imageUrl: '', linkUrl: ''
+  });
 
   const playNotificationSound = () => {
     try {
@@ -96,8 +142,8 @@ export default function App() {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3); // A5
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3);
       gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
       osc.connect(gain);
@@ -109,14 +155,13 @@ export default function App() {
     }
   };
 
-  // المزامنة والتحديث اللحظي عبر المتصفحات/  
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'sec_orders') {
         const newOrders = JSON.parse(e.newValue || '[]');
         if (newOrders.length > orders.length) {
           playNotificationSound();
-          showToast(' طلب جديد وصل الآن إلى المتجر!');
+          showToast('🔔 طلب جديد وصل الآن إلى لوحة التحكم!');
         }
         setOrders(newOrders);
       }
@@ -126,27 +171,26 @@ export default function App() {
   }, [orders.length]);
 
   useEffect(() => {
-    localStorage.setItem('sec_categories', JSON.stringify(categories));
+    if (banners.length === 0) return;
+    const bannerTimer = setInterval(() => {
+      setActiveBanner((prev) => (prev + 1) % banners.length);
+    }, 5000);
+    return () => clearInterval(bannerTimer);
+  }, [banners.length]);
+
+  useEffect(() => { 
+    const categoriesToSave = categories.map(({ icon, ...rest }) => rest);
+    localStorage.setItem('sec_categories', JSON.stringify(categoriesToSave)); 
   }, [categories]);
 
-  useEffect(() => {
-    localStorage.setItem('sec_products', JSON.stringify(products));
-  }, [products]);
+  useEffect(() => { localStorage.setItem('sec_products', JSON.stringify(products)); }, [products]);
+  useEffect(() => { localStorage.setItem('sec_banners', JSON.stringify(banners)); }, [banners]);
+  useEffect(() => { localStorage.setItem('sec_orders', JSON.stringify(orders)); }, [orders]);
+  useEffect(() => { localStorage.setItem('sec_complaints', JSON.stringify(complaints)); }, [complaints]);
+  useEffect(() => { localStorage.setItem('sec_activity_logs', JSON.stringify(activityLogs)); }, [activityLogs]);
 
   useEffect(() => {
-    localStorage.setItem('sec_orders', JSON.stringify(orders));
-  }, [orders]);
-
-  useEffect(() => {
-    localStorage.setItem('sec_complaints', JSON.stringify(complaints));
-  }, [complaints]);
-
-  useEffect(() => {
-    localStorage.setItem('sec_activity_logs', JSON.stringify(activityLogs));
-  }, [activityLogs]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setShowIntro(false), 800);
+    const timer = setTimeout(() => setShowIntro(false), 700);
     return () => clearTimeout(timer);
   }, []);
 
@@ -158,7 +202,7 @@ export default function App() {
   const addLog = (user, action) => {
     const newLog = {
       id: 'LOG-' + Date.now(),
-      user: user || currentUser || 'زائر',
+      user: user || currentUser || 'عميل',
       action,
       timestamp: new Date().toLocaleString('ar-EG')
     };
@@ -176,10 +220,10 @@ export default function App() {
       setCurrentUser(foundUser.username);
       setLoginForm({ username: '', password: '' });
       setLoginError('');
-      showToast(`مرحباً بك ${foundUser.username}! 👋`);
-      addLog(foundUser.username, 'تسجيل دخول إلى لوحة التحكم');
+      showToast(`مرحباً بك ${foundUser.username} في لوحة التحكم! 👋`);
+      addLog(foundUser.username, 'تسجيل دخول إلى لوحة الإدارة');
     } else {
-      setLoginError('اسم المستخدم أو كلمة السر غير صحيحة ');
+      setLoginError('اسم المستخدم أو كلمة السر غير صحيحة');
     }
   };
 
@@ -191,7 +235,47 @@ export default function App() {
     setIsAdminPath(false);
   };
 
-  // إدارة الطلبات (تغيير الحالة والحذف)
+  const handleSaveBanner = (e) => {
+    e.preventDefault();
+    if (!bannerForm.title && !bannerForm.imageUrl) return;
+
+    if (bannerForm.id) {
+      setBanners(prev => prev.map(b => b.id === bannerForm.id ? { ...bannerForm } : b));
+      addLog(currentUser, `تعديل السلايد: (${bannerForm.title || 'سلايد صورة'})`);
+      showToast('تم تعديل السلايد بنجاح!');
+    } else {
+      const created = { ...bannerForm, id: 'b-' + Date.now() };
+      setBanners(prev => [...prev, created]);
+      addLog(currentUser, `إضافة سلايد جديد: (${bannerForm.title || 'سلايد صورة'})`);
+      showToast('تم إضافة السلايد بنجاح!');
+    }
+    setBannerForm({ id: null, title: '', subtitle: '', badge: 'عرض خاص', productId: '', bgGradient: 'from-blue-900 via-indigo-900 to-purple-950', imageUrl: '', linkUrl: '' });
+  };
+
+  const handleDeleteBanner = (id) => {
+    if (confirm('هل أنت تأكد من حذف هذا السلايد؟')) {
+      setBanners(prev => prev.filter(b => b.id !== id));
+      addLog(currentUser, `حذف السلايد رقم (${id})`);
+      showToast('تم حذف السلايد.');
+    }
+  };
+
+  const handleBannerClick = (banner) => {
+    if (banner.linkUrl) {
+      window.open(banner.linkUrl, '_blank');
+      return;
+    }
+    if (banner.productId) {
+      const prod = products.find(p => String(p.id) === String(banner.productId));
+      if (prod) {
+        setSelectedProduct(prod);
+        setActiveImageIndex(0);
+        return;
+      }
+    }
+    setSelectedCategory('all');
+  };
+
   const handleUpdateOrderStatus = (orderId, newStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     addLog(currentUser, `تغيير حالة الطلب (${orderId}) إلى: ${newStatus}`);
@@ -202,25 +286,25 @@ export default function App() {
     if (confirm(`هل تريد بالتأكيد حذف الطلب رقم ${orderId}؟`)) {
       setOrders(prev => prev.filter(o => o.id !== orderId));
       addLog(currentUser, `حذف الطلب رقم: (${orderId})`);
-      showToast('تم حذف الطلب بنجاح ');
+      showToast('تم حذف الطلب بنجاح');
     }
   };
 
   const handleAddCategory = (e) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
-    const createdCat = { id: 'cat-' + Date.now(), name: newCategoryName.trim() };
+    const createdCat = { id: 'cat-' + Date.now(), name: newCategoryName.trim(), icon: Sparkles };
     setCategories((prev) => [...prev, createdCat]);
-    addLog(currentUser, `إضافة كتالوج جديد: (${newCategoryName.trim()})`);
+    addLog(currentUser, `إضافة تصنيف جديد: (${newCategoryName.trim()})`);
     setNewCategoryName('');
-    showToast('تم إضافة الكتالوج بنجاح! ');
+    showToast('تم إضافة القسم بنجاح!');
   };
 
   const handleDeleteCategory = (id) => {
     const target = categories.find((c) => String(c.id) === String(id));
-    if (confirm('هل أنت تأكد من حذف هذا الكتالوج؟')) {
+    if (confirm('هل أنت تأكد من حذف هذا القسم؟')) {
       setCategories((prev) => prev.filter((c) => String(c.id) !== String(id)));
-      addLog(currentUser, `حذف كتالوج: (${target?.name || id})`);
+      addLog(currentUser, `حذف قسم: (${target?.name || id})`);
       showToast('تم الحذف بنجاح.');
     }
   };
@@ -228,18 +312,24 @@ export default function App() {
   const handleAddProductSubmit = (e) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) return;
+    
+    const rawImages = newProduct.imagesInput.split(/[\n,]+/).map(img => img.trim()).filter(Boolean);
+    const finalImages = rawImages.length > 0 ? rawImages : ['https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&auto=format&fit=crop&q=60'];
+
     const item = { 
       ...newProduct, 
-      id: Date.now().toString(), 
+      id: 'p-' + Date.now(), 
       price: Number(newProduct.price),
-      category: String(newProduct.category || categories[0]?.id || 'sec'),
+      category: String(newProduct.category || categories[0]?.id || 'cat-1'),
       rating: 5,
-      image: newProduct.image || 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400&auto=format&fit=crop&q=60'
+      isTopSelling: newProduct.isTopSelling,
+      images: finalImages,
+      image: finalImages[0]
     };
     setProducts((prev) => [item, ...prev]);
     addLog(currentUser, `نشر منتج جديد: (${newProduct.name}) بسعر ${newProduct.price} ج.م`);
-    setNewProduct({ name: '', category: categories[0]?.id || 'sec', price: '', description: '', image: '', badge: 'جديد', inStock: true });
-    showToast('تم نشر المنتج في المتجر! ');
+    setNewProduct({ name: '', category: categories[0]?.id || 'cat-1', price: '', description: '', imagesInput: '', badge: 'جديد', inStock: true, isTopSelling: false });
+    showToast('تم نشر المنتج في المتجر!');
   };
 
   const handleDeleteProduct = (id) => {
@@ -277,15 +367,10 @@ export default function App() {
       read: false
     };
     setComplaints((prev) => [item, ...prev]);
-    addLog('زبون', `إرسال شكوى جديدة من رقم (${newComplaint.phone})`);
+    addLog('عميل', `إرسال رسالة/استفسار من رقم (${newComplaint.phone})`);
     setNewComplaint({ name: '', phone: '', message: '' });
     setIsComplaintOpen(false);
-    showToast('تم إرسال رسالتك وسنقرأها فوراً! ');
-  };
-
-  const toggleComplaintRead = (id) => {
-    setComplaints((prev) => prev.map(c => String(c.id) === String(id) ? { ...c, read: true } : c));
-    addLog(currentUser, `قراءة الشكوى رقم: (${id})`);
+    showToast('تم إرسال رسالتك وسنرد عليك فوراً! 💬');
   };
 
   const addToCart = (product) => {
@@ -297,7 +382,7 @@ export default function App() {
       }
       return [...prev, { ...product, qty: 1 }];
     });
-    showToast('تم إضافة المنتج لسلة التسوق! ');
+    showToast('تمت الإضافة للسلة بنجاح! 🛒');
   };
 
   const updateCartQty = (id, delta) => {
@@ -314,14 +399,15 @@ export default function App() {
     setCart(prev => prev.filter(item => String(item.id) !== String(id)));
   };
 
-  // إتمام الطلب وتفعيل التنبيه اللحظي
+  const grandTotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.qty, 0), [cart]);
+
   const handleCompleteOrder = (e) => {
     e.preventDefault();
     if (!customerInfo.name || !customerInfo.phone) return;
 
     let paymentMethodLabel = '';
     if (paymentMethod === 'cod') paymentMethodLabel = 'الدفع عند الاستلام (COD)';
-    if (paymentMethod === 'card') paymentMethodLabel = 'بطاقة بنكية / أونلاين محلي';
+    if (paymentMethod === 'card') paymentMethodLabel = 'بطاقة بنكية / محفظة إلكترونية';
     if (paymentMethod === 'whatsapp') paymentMethodLabel = 'تحويل وإتمام عبر الواتساب';
 
     const orderId = 'ORD-' + Math.floor(1000 + Math.random() * 9000);
@@ -337,14 +423,13 @@ export default function App() {
       items: cart.map(item => ({ name: item.name, qty: item.qty, price: item.price }))
     };
 
-    // حفظ الطلب وإطلاق الإشعار والصوت
     setOrders((prev) => [newOrder, ...prev]);
     playNotificationSound();
     addLog(customerInfo.name, `إنشاء طلب جديد رقم (${newOrder.id}) بقيمة ${grandTotal} ج.م [طريقة الدفع: ${paymentMethodLabel}]`);
 
     if (paymentMethod === 'whatsapp') {
       const itemsList = cart.map(i => `- ${i.name} (${i.qty}x)`).join('\n');
-      const message = `مرحباً، أريد تأكيد الطلب رقم *${orderId}*\n\n*الاسم:* ${customerInfo.name}\n*الهاتف:* ${customerInfo.phone}\n*العنوان:* ${customerInfo.address}\n\n*المنتجات:*\n${itemsList}\n\n*الإجمالي:* ${grandTotal} ج.م`;
+      const message = `مرحباً متجر SEC، أريد تأكيد الطلب رقم *${orderId}*\n\n*الاسم:* ${customerInfo.name}\n*الهاتف:* ${customerInfo.phone}\n*العنوان:* ${customerInfo.address}\n\n*المنتجات:*\n${itemsList}\n\n*الإجمالي:* ${grandTotal} ج.م`;
       window.open(`https://wa.me/201000000000?text=${encodeURIComponent(message)}`);
     }
 
@@ -352,24 +437,16 @@ export default function App() {
     setIsCartOpen(false);
     setCheckoutStep('cart');
     setCustomerInfo({ name: '', phone: '', address: '' });
-    showToast('تم إرسال طلبك بنجاح وسيرسل إشعار لحظي للأدمن ');
+    showToast('تم إرسال طلبك بنجاح! وسيرسل إشعار لحظي للأدمن 🚀');
   };
 
-  const grandTotal = useMemo(() => cart.reduce((acc, item) => acc + item.price * item.qty, 0), [cart]);
-
-  // إحصائيات الأرباح والمؤشرات المالية
   const revenueStats = useMemo(() => {
     const totalRevenue = orders.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
     const completedRevenue = orders.filter(o => o.status === 'مكتمل' || o.status === 'تم الدفع (إلكتروني)').reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
     const pendingRevenue = orders.filter(o => o.status === 'قيد الانتظار' || o.status === 'قيد التوصيل').reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
     const avgOrderValue = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
     
-    // المبيعات حسب طريقة الدفع
-    const codRevenue = orders.filter(o => o.paymentMethod?.includes('COD')).reduce((a, c) => a + Number(c.total), 0);
-    const cardRevenue = orders.filter(o => o.paymentMethod?.includes('بطاقة')).reduce((a, c) => a + Number(c.total), 0);
-    const whatsappRevenue = orders.filter(o => o.paymentMethod?.includes('الواتساب')).reduce((a, c) => a + Number(c.total), 0);
-
-    return { totalRevenue, completedRevenue, pendingRevenue, avgOrderValue, codRevenue, cardRevenue, whatsappRevenue };
+    return { totalRevenue, completedRevenue, pendingRevenue, avgOrderValue };
   }, [orders]);
 
   const filteredProducts = useMemo(() => {
@@ -385,18 +462,17 @@ export default function App() {
   }, [products, adminSearchTerm]);
 
   return (
-    <div className={`min-h-screen font-['Cairo'] relative overflow-x-hidden transition-colors duration-500 selection:bg-[#D4AF37] selection:text-black ${
-      darkMode ? 'bg-[#090d16] text-slate-100' : 'bg-slate-50 text-slate-900'
+    <div className={`min-h-screen font-['Cairo'] relative overflow-x-hidden transition-colors duration-500 selection:bg-blue-600 selection:text-white ${
+      darkMode ? 'bg-[#080d1a] text-slate-100' : 'bg-slate-50 text-slate-900'
     }`} dir="rtl">
 
-      {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div 
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-6 left-6 z-[9999] bg-gradient-to-r from-amber-400 to-[#D4AF37] text-black font-black py-3 px-5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs"
+            className="fixed bottom-6 left-6 z-[9999] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 px-5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs border border-blue-400/30"
           >
             <Bell className="w-4 h-4 animate-bounce"/>
             <span>{toastMessage}</span>
@@ -406,12 +482,12 @@ export default function App() {
 
       <AnimatePresence>
         {showIntro && (
-          <motion.div initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center ${darkMode ? 'bg-[#030712]' : 'bg-slate-50'}`}>
+          <motion.div initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#050811]">
             <div className="relative text-center z-10 flex flex-col items-center">
-              <div className="p-4 bg-gradient-to-tr from-amber-500/20 via-yellow-400/10 to-transparent rounded-3xl border border-amber-500/30 shadow-2xl backdrop-blur-xl mb-4">
-                <GraduationCap className="w-14 h-14 text-[#D4AF37]"/>
+              <div className="p-4 bg-blue-600/20 rounded-3xl border border-blue-500/30 shadow-2xl mb-4 animate-pulse">
+                <ShoppingBag className="w-12 h-12 text-blue-400"/>
               </div>
-              <h1 className="text-3xl font-black bg-gradient-to-r from-amber-200 via-[#D4AF37] to-yellow-500 bg-clip-text text-transparent">SEC STORE</h1>
+              <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">SEC</h1>
             </div>
           </motion.div>
         )}
@@ -419,17 +495,23 @@ export default function App() {
 
       {!showIntro && (
         <>
-          {/* Header */}
-          <header className={`sticky top-0 z-40 backdrop-blur-2xl border-b px-4 md:px-8 py-3.5 flex justify-between items-center shadow-sm ${
-            darkMode ? 'bg-[#090d16]/90 border-slate-800/80' : 'bg-white/90 border-slate-200/80'
+          {!isAdminPath && (
+            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700 text-white text-[11px] py-1.5 px-4 text-center font-bold flex justify-center items-center gap-2 border-b border-white/10">
+              <Sparkles className="w-3.5 h-3.5 animate-spin"/>
+              <span>أهلاً بكم في متجر SEC - عروض خيالية وحصرية على جميع الكتب والمستلزمات والأكواد!</span>
+            </div>
+          )}
+
+          <header className={`sticky top-0 z-40 backdrop-blur-2xl border-b px-4 md:px-8 py-3.5 flex justify-between items-center shadow-md ${
+            darkMode ? 'bg-[#0b1329]/90 border-slate-800/80' : 'bg-white/90 border-slate-200/80'
           }`}>
-            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { window.history.pushState({}, '', '/'); setIsAdminPath(false); }}>
-              <div className="p-2.5 bg-gradient-to-br from-amber-500/20 to-amber-300/5 rounded-2xl border border-amber-500/30 shadow-inner group-hover:scale-105 transition-transform duration-300">
-                <GraduationCap className="w-6 h-6 text-[#D4AF37]"/>
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { window.history.pushState({}, '', '/'); setIsAdminPath(false); setSelectedProduct(null); }}>
+              <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                <ShoppingBag className="w-6 h-6 text-white"/>
               </div>
               <div>
-                <h1 className="text-lg font-black bg-gradient-to-r from-amber-300 via-[#D4AF37] to-yellow-500 bg-clip-text text-transparent">SEC STORE</h1>
-                <p className={`text-[10px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>المنصة التعليمية الشاملة</p>
+                <h1 className="text-lg font-black bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">SEC</h1>
+                <p className={`text-[10px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>SEC STORE</p>
               </div>
             </div>
 
@@ -444,14 +526,14 @@ export default function App() {
               <button 
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2.5 rounded-2xl border transition-all hover:scale-105 ${
-                  darkMode ? 'bg-slate-900 border-slate-800 text-amber-400 hover:border-amber-400/50' : 'bg-white border-slate-200 text-slate-700 hover:border-amber-400/50'
+                  darkMode ? 'bg-slate-900 border-slate-800 text-amber-400' : 'bg-slate-100 border-slate-200 text-slate-700'
                 }`}
               >
                 {darkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
               </button>
 
               {isAdminPath && isAdminLoggedIn && (
-                <button onClick={handleAdminLogout} className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all hover:shadow-lg hover:shadow-red-500/20">
+                <button onClick={handleAdminLogout} className="py-2.5 px-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-rose-500 hover:text-white transition-all">
                   <LogOut className="w-4 h-4"/>
                   <span>الخروج</span>
                 </button>
@@ -460,13 +542,13 @@ export default function App() {
               {!isAdminPath && (
                 <button 
                   onClick={() => setIsCartOpen(true)} 
-                  className={`relative p-2.5 border rounded-2xl flex items-center gap-2 transition-all hover:scale-105 hover:border-amber-400/50 ${
-                    darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                  className={`relative p-2.5 border rounded-2xl flex items-center gap-2 transition-all hover:scale-105 ${
+                    darkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
                   }`}
                 >
-                  <ShoppingCart className="w-5 h-5 text-[#D4AF37]"/>
+                  <ShoppingCart className="w-5 h-5 text-blue-500"/>
                   {cart.length > 0 && (
-                    <span className="bg-amber-400 text-black text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                    <span className="bg-blue-600 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
                       {cart.reduce((a, c) => a + c.qty, 0)}
                     </span>
                   )}
@@ -475,48 +557,47 @@ export default function App() {
             </div>
           </header>
 
-          {/* لوحة تحكم الأدمن */}
           {isAdminPath ? (
             !isAdminLoggedIn ? (
               <div className="min-h-[80vh] flex items-center justify-center px-4 relative z-10">
                 <div className={`w-full max-w-md border rounded-3xl p-8 shadow-2xl backdrop-blur-xl ${
-                  darkMode ? 'bg-[#0f172a]/90 border-slate-800' : 'bg-white/90 border-slate-200'
+                  darkMode ? 'bg-[#0b1329]/90 border-slate-800' : 'bg-white/90 border-slate-200'
                 }`}>
                   <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-amber-400/10 border border-amber-400/30 rounded-3xl flex items-center justify-center mx-auto mb-3">
-                      <ShieldCheck className="w-8 h-8 text-[#D4AF37]"/>
+                    <div className="w-16 h-16 bg-blue-600/10 border border-blue-500/30 rounded-3xl flex items-center justify-center mx-auto mb-3">
+                      <ShieldCheck className="w-8 h-8 text-blue-400"/>
                     </div>
-                    <h2 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>تسجيل دخول الأدمن</h2>
-                    <p className="text-xs text-slate-400 mt-1">لوحة الإدارة والتحكم بالأوامر والمنتجات</p>
+                    <h2 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>لوحة أدمن متجر SEC</h2>
+                    <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'} mt-1`}>إدارة الأوامر والمنتجات والسلايدر المباشر</p>
                   </div>
 
                   <form onSubmit={handleAdminLogin} className="space-y-4">
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 mb-1 block">اسم المستخدم</label>
+                      <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} mb-1 block`}>اسم المستخدم</label>
                       <input
                         type="text"
                         placeholder="admin أو dev"
                         required
                         value={loginForm.username}
                         onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                        className={`w-full p-3.5 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                        className={`w-full p-3.5 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-400 mb-1 block">كلمة المرور</label>
+                      <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} mb-1 block`}>كلمة المرور</label>
                       <input
                         type="password"
                         placeholder="••••••••"
                         required
                         value={loginForm.password}
                         onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                        className={`w-full p-3.5 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                        className={`w-full p-3.5 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                       />
                     </div>
-                    {loginError && <p className="text-xs text-red-500 font-bold text-center">{loginError}</p>}
+                    {loginError && <p className="text-xs text-rose-500 font-bold text-center">{loginError}</p>}
                     <button 
                       type="submit" 
-                      className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-[#D4AF37] text-black font-black text-xs rounded-2xl hover:brightness-110 transition-all hover:shadow-lg hover:shadow-amber-400/20"
+                      className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-xs rounded-2xl hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
                     >
                       دخول لوحة التحكم
                     </button>
@@ -525,21 +606,20 @@ export default function App() {
               </div>
             ) : (
               <div className="flex flex-col lg:flex-row min-h-[calc(100vh-73px)]">
-                {/* Sidebar */}
                 <aside className={`w-full lg:w-64 border-b lg:border-b-0 lg:border-l p-4 flex flex-row lg:flex-col gap-2 shrink-0 ${
-                  darkMode ? 'bg-[#0c1322] border-slate-800' : 'bg-white border-slate-200'
+                  darkMode ? 'bg-[#080d1a] border-slate-800' : 'bg-white border-slate-200'
                 }`}>
                   <div className="hidden lg:block px-3 py-2 mb-2">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">لوحة الإدارة والتحكم</p>
+                    <p className={`text-[10px] font-bold ${darkMode ? 'text-slate-500' : 'text-slate-400'} uppercase tracking-wider`}>نظام الإدارة المباشر</p>
                   </div>
 
                   {[
                     { id: 'dashboard', label: 'الإحصائيات العامة', icon: BarChart3 },
-                    { id: 'revenue', label: 'تجميع الأرباح والمبيعات', icon: DollarSign },
-                    // { id: 'analytics', label: 'مؤشرات الأداء (Analytics)', icon: TrendingUp },
+                    { id: 'banners', label: 'إدارة السلايدر (البنرات)', icon: ImageIcon, badge: banners.length },
+                    { id: 'revenue', label: 'تجميع الأرباح والخزينة', icon: DollarSign },
                     { id: 'orders', label: 'الطلبات المباشرة', icon: ShoppingBag, badge: orders.length },
                     { id: 'products', label: 'المنتجات والمخزون', icon: Package },
-                    { id: 'categories', label: 'الكتالوجات والتصنيفات', icon: Layers },
+                    { id: 'categories', label: 'الأقسام والتصنيفات', icon: Layers },
                     { id: 'complaints', label: 'الشكاوى والرسائل', icon: MessageSquare, badge: complaints.filter(c => !c.read).length },
                     { id: 'logs', label: 'سجل العمليات', icon: Activity }
                   ].map((item) => {
@@ -549,9 +629,9 @@ export default function App() {
                       <button
                         key={item.id}
                         onClick={() => setAdminTab(item.id)}
-                        className={`flex-1 lg:flex-initial p-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all hover:scale-[1.02] ${
+                        className={`flex-1 lg:flex-initial p-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all ${
                           active 
-                            ? 'bg-amber-400 text-black font-black shadow-lg shadow-amber-400/20' 
+                            ? 'bg-blue-600 text-white font-black shadow-lg shadow-blue-600/30' 
                             : darkMode ? 'text-slate-400 hover:bg-slate-800/50' : 'text-slate-600 hover:bg-slate-100'
                         }`}
                       >
@@ -561,7 +641,7 @@ export default function App() {
                         </div>
                         {item.badge > 0 && (
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                            active ? 'bg-black text-amber-400' : 'bg-amber-400 text-black'
+                            active ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
                           }`}>
                             {item.badge}
                           </span>
@@ -571,219 +651,233 @@ export default function App() {
                   })}
                 </aside>
 
-                {/* Content Area */}
                 <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
                   
-                  {/* Dashboard Tab */}
                   {adminTab === 'dashboard' && (
                     <div className="space-y-6">
                       <div className="flex justify-between items-center">
                         <div>
-                          <h2 className="text-xl font-black">نظرة عامة على النظام</h2>
-                          <p className="text-xs text-slate-400">استقبال لحظي ومباشر للطلبات الميدانية</p>
+                          <h2 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>لوحة التحكم والأداء Live</h2>
+                          <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>مراقبة الأوامر الواردة والإحصائيات الحية</p>
                         </div>
-                        <button onClick={playNotificationSound} className="py-2 px-3 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-xs rounded-xl font-bold flex items-center gap-2 hover:bg-amber-400 hover:text-black transition-all">
+                        <button onClick={playNotificationSound} className="py-2 px-3 bg-blue-600/10 border border-blue-500/30 text-blue-500 text-xs rounded-xl font-bold flex items-center gap-2 hover:bg-blue-600 hover:text-white transition-all">
                           <Bell className="w-3.5 h-3.5"/>
-                          <span>تجربة نغمة الإشعار</span>
+                          <span>اختبار نغمة التنبيه</span>
                         </button>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-slate-400">إجمالي الطلبات</span>
-                            <ShoppingBag className="w-5 h-5 text-amber-400"/>
+                            <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>إجمالي الطلبات</span>
+                            <ShoppingBag className="w-5 h-5 text-blue-400"/>
                           </div>
-                          <h3 className="text-2xl font-black text-[#D4AF37]">{orders.length}</h3>
-                          <p className="text-[10px] text-emerald-400 mt-2">تحديث مباشر بدون تنشيط</p>
+                          <h3 className="text-2xl font-black text-blue-500">{orders.length}</h3>
+                          <p className="text-[10px] text-emerald-500 mt-2">تحديث لحظي بدون إعادة تحميل</p>
                         </div>
 
-                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-slate-400">إجمالي الإيرادات</span>
+                            <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>إجمالي المبيعات</span>
                             <DollarSign className="w-5 h-5 text-emerald-400"/>
                           </div>
-                          <h3 className="text-2xl font-black text-emerald-400">{revenueStats.totalRevenue} ج.م</h3>
-                          <p className="text-[10px] text-slate-400 mt-2">مجموع المبيعات الكلية</p>
+                          <h3 className="text-2xl font-black text-emerald-500">{revenueStats.totalRevenue} ج.م</h3>
+                          <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'} mt-2`}>مجموع المبيعات الكلية</p>
                         </div>
 
-                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-slate-400">إجمالي المنتجات</span>
-                            <Package className="w-5 h-5 text-amber-400"/>
+                            <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>عدد المنتجات</span>
+                            <Package className="w-5 h-5 text-indigo-400"/>
                           </div>
-                          <h3 className="text-2xl font-black text-[#D4AF37]">{products.length}</h3>
-                          <p className="text-[10px] text-slate-400 mt-2">منتج معروض بالمتجر</p>
+                          <h3 className="text-2xl font-black text-indigo-500">{products.length}</h3>
+                          <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'} mt-2`}>منتج معروض في متجر SEC</p>
                         </div>
 
-                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <div className={`p-6 rounded-3xl border transition-transform hover:scale-[1.02] ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-slate-400">الشكاوى والاستفسارات</span>
+                            <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>الرسائل والشكاوى</span>
                             <MessageSquare className="w-5 h-5 text-rose-400"/>
                           </div>
-                          <h3 className="text-2xl font-black text-rose-400">{complaints.length}</h3>
-                          <p className="text-[10px] text-slate-400 mt-2">{complaints.filter(c => !c.read).length} لم تتم قراءتها</p>
+                          <h3 className="text-2xl font-black text-rose-500">{complaints.length}</h3>
+                          <p className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'} mt-2`}>{complaints.filter(c => !c.read).length} غير مقروءة</p>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Revenue Tab - شاشة تجميع الأرباح */}
-                  {adminTab === 'revenue' && (
+                  {adminTab === 'banners' && (
                     <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h2 className="text-xl font-black">شاشة تجميع الأرباح والتجميع المالي</h2>
-                          <p className="text-xs text-slate-400">تفاصيل الخزينة والمبيعات حسب وسيلة الدفع</p>
-                        </div>
-                      </div>
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                          {bannerForm.id ? 'تعديل السلايد الحالي' : 'إضافة سلايدر إعلاني جديد'}
+                        </h3>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                          <span className="text-xs text-slate-400">الأرباح المُحصلة (المكتملة)</span>
-                          <h3 className="text-3xl font-black text-emerald-400 my-2">{revenueStats.completedRevenue} ج.م</h3>
-                          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg border border-emerald-500/20">جاهزة للتحويل</span>
-                        </div>
-
-                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                          <span className="text-xs text-slate-400">أرباح قيد التوصيل والتحصيل</span>
-                          <h3 className="text-3xl font-black text-amber-400 my-2">{revenueStats.pendingRevenue} ج.م</h3>
-                          <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg border border-amber-500/20">مع مندوب التوصيل</span>
-                        </div>
-
-                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                          <span className="text-xs text-slate-400">متوسط قيمة الطلب الواحد</span>
-                          <h3 className="text-3xl font-black text-sky-400 my-2">{revenueStats.avgOrderValue} ج.م</h3>
-                          <span className="text-[10px] bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-lg border border-sky-500/20">معدل شراء العميل</span>
-                        </div>
-                      </div>
-
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <h3 className="font-bold text-sm mb-6">توزيع المبيعات حسب طرق الدفع</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/50">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Truck className="w-4 h-4 text-amber-400"/>
-                              <span className="text-xs font-bold">الدفع عند الاستلام (COD)</span>
-                            </div>
-                            <p className="text-xl font-black text-white">{revenueStats.codRevenue} ج.م</p>
+                        <form onSubmit={handleSaveBanner} className="space-y-4">
+                          <div>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>رابط صورة كامل للسلايد (اختياري - يظهر كبنر صورة كامل)</label>
+                            <input
+                              type="url"
+                              placeholder="https://example.com/banner-image.jpg"
+                              value={bannerForm.imageUrl || ''}
+                              onChange={(e) => setBannerForm({ ...bannerForm, imageUrl: e.target.value })}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">إذا تم وضع رابط صورة، سيتم عرض الصورة كبنر كامل. إن تركته فارغاً سيعتمد السلايدر على العنوان والنص الخلفي.</p>
                           </div>
 
-                          <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/50">
-                            <div className="flex items-center gap-2 mb-2">
-                              <CreditCard className="w-4 h-4 text-sky-400"/>
-                              <span className="text-xs font-bold">بطاقات والدفع الإلكتروني</span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>عنوان السلايد الرئيسي</label>
+                              <input
+                                type="text"
+                                placeholder="خصم يصل إلى 25%..."
+                                value={bannerForm.title}
+                                onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                              />
                             </div>
-                            <p className="text-xl font-black text-white">{revenueStats.cardRevenue} ج.م</p>
+
+                            <div>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>الشارة الترويجية (Badge)</label>
+                              <input
+                                type="text"
+                                placeholder="عرض محدود / جديد..."
+                                value={bannerForm.badge}
+                                onChange={(e) => setBannerForm({ ...bannerForm, badge: e.target.value })}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                              />
+                            </div>
                           </div>
 
-                          <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/50">
-                            <div className="flex items-center gap-2 mb-2">
-                              <PhoneCall className="w-4 h-4 text-emerald-400"/>
-                              <span className="text-xs font-bold">تحويلات الواتساب</span>
-                            </div>
-                            <p className="text-xl font-black text-white">{revenueStats.whatsappRevenue} ج.م</p>
+                          <div>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>الوصف الفرعي</label>
+                            <input
+                              type="text"
+                              placeholder="تفاصيل العرض..."
+                              value={bannerForm.subtitle}
+                              onChange={(e) => setBannerForm({ ...bannerForm, subtitle: e.target.value })}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                            />
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Analytics Tab - شاشة مؤشر الأداء
-                  {adminTab === 'analytics' && (
-                    <div className="space-y-6">
-                      <div>
-                        <h2 className="text-xl font-black">شاشة المؤشرات والتحليلات البيانية</h2>
-                        <p className="text-xs text-slate-400">رسم بياني توضيحي لمعدل الطلبات ونسب الإنجاز</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>ربط برابط انتقال خارجي Link URL (اختياري)</label>
+                              <input
+                                type="url"
+                                placeholder="https://external-link.com"
+                                value={bannerForm.linkUrl || ''}
+                                onChange={(e) => setBannerForm({ ...bannerForm, linkUrl: e.target.value })}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                              />
+                            </div>
+
+                            <div>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>أو ربطه بمنتج معين داخل المتجر</label>
+                              <select
+                                value={bannerForm.productId}
+                                onChange={(e) => setBannerForm({ ...bannerForm, productId: e.target.value })}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                              >
+                                <option value="">بدون ربط (تصفح العامة)</option>
+                                {products.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name} ({p.price} ج.م)</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <button type="submit" className="py-3 px-6 bg-blue-600 text-white font-bold text-xs rounded-2xl hover:bg-blue-500 transition-all">
+                              {bannerForm.id ? 'حفظ التعديلات' : 'إضافة السلايد'}
+                            </button>
+                            {bannerForm.id && (
+                              <button 
+                                type="button" 
+                                onClick={() => setBannerForm({ id: null, title: '', subtitle: '', badge: 'عرض خاص', productId: '', bgGradient: 'from-blue-900 via-indigo-900 to-purple-950', imageUrl: '', linkUrl: '' })}
+                                className="py-3 px-6 bg-slate-700 text-white font-bold text-xs rounded-2xl"
+                              >
+                                إلغاء
+                              </button>
+                            )}
+                          </div>
+                        </form>
                       </div>
 
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <h3 className="font-bold text-sm mb-6">مؤشر نمو الطلبات والمبيعات (أسبوعي)</h3>
-                        
-                        Visual Chart Bars
-                        <div className="h-48 flex items-end justify-between gap-3 pt-8 pb-2 px-4 border-b border-slate-800">
-                          {[
-                            { day: 'السبت', val: 40 },
-                            { day: 'الأحد', val: 65 },
-                            { day: 'الإثنين', val: 30 },
-                            { day: 'الثلاثاء', val: 85 },
-                            { day: 'الأربعاء', val: 50 },
-                            { day: 'الخميس', val: 95 },
-                            { day: 'الجمعة', val: 70 }
-                          ].map((bar, idx) => (
-                            <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
-                              <span className="text-[10px] text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity mb-1 font-bold">{bar.val}%</span>
-                              <div 
-                                style={{ height: `${bar.val}%` }} 
-                                className="w-full bg-gradient-to-t from-amber-500 to-[#D4AF37] rounded-t-xl group-hover:brightness-125 transition-all shadow-lg shadow-amber-500/20"
-                              ></div>
-                              <span className="text-[10px] text-slate-400 mt-2">{bar.day}</span>
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>السلايدات الحالية ({banners.length})</h3>
+                        <div className="space-y-3">
+                          {banners.map((b) => (
+                            <div key={b.id} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                              <div className="flex items-center gap-3">
+                                {b.imageUrl && (
+                                  <img src={b.imageUrl} alt="" className="w-16 h-12 object-cover rounded-xl border border-slate-700" />
+                                )}
+                                <div>
+                                  <span className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-md font-bold mb-1 inline-block">{b.badge}</span>
+                                  <h4 className={`font-bold text-xs ${darkMode ? 'text-white' : 'text-slate-900'}`}>{b.title || 'سلايد صورة بدون عنوان'}</h4>
+                                  <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{b.subtitle}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setBannerForm(b)} className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all" title="تعديل">
+                                  <Edit className="w-4 h-4"/>
+                                </button>
+                                <button onClick={() => handleDeleteBanner(b.id)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all" title="حذف">
+                                  <Trash2 className="w-4 h-4"/>
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
+                    </div>
+                  )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                          <h4 className="font-bold text-xs mb-3 text-slate-300">مؤشر معدل نجاح الطلبات</h4>
-                          <div className="w-full bg-slate-800 h-4 rounded-full overflow-hidden flex">
-                            <div className="bg-emerald-500 h-full" style={{ width: '75%' }}></div>
-                            <div className="bg-amber-400 h-full" style={{ width: '15%' }}></div>
-                            <div className="bg-rose-500 h-full" style={{ width: '10%' }}></div>
-                          </div>
-                          <div className="flex justify-between text-[10px] font-bold mt-2">
-                            <span className="text-emerald-400">75% مكتمل</span>
-                            <span className="text-amber-400">15% جاري التوصيل</span>
-                            <span className="text-rose-400">10% ملغي</span>
-                          </div>
+                  {adminTab === 'revenue' && (
+                    <div className="space-y-6">
+                      <div>
+                        <h2 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>التقرير المالي والخزينة</h2>
+                        <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>تفاصيل التدفقات المالية المكتملة وقيد التحصيل</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>الأرباح المُحصلة والمكتملة</span>
+                          <h3 className="text-3xl font-black text-emerald-500 my-2">{revenueStats.completedRevenue} ج.م</h3>
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2.5 py-1 rounded-lg border border-emerald-500/20">جاهزة للسحب/التحويل</span>
                         </div>
 
-                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                          <h4 className="font-bold text-xs mb-3 text-slate-300">مؤشر الإقبال على الكتالوجات</h4>
-                          <div className="space-y-2">
-                            <div>
-                              <div className="flex justify-between text-[11px] font-bold mb-1">
-                                <span>مذكرات وكتب SEC</span>
-                                <span className="text-amber-400">65%</span>
-                              </div>
-                              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-amber-400 h-full" style={{ width: '65%' }}></div>
-                              </div>
-                            </div>
-                            <div>
-                              <div className="flex justify-between text-[11px] font-bold mb-1">
-                                <span>حاسبات وأدوات</span>
-                                <span className="text-sky-400">35%</span>
-                              </div>
-                              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-sky-400 h-full" style={{ width: '35%' }}></div>
-                              </div>
-                            </div>
-                          </div>
+                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>أرباح قيد التوصيل والتحصيل</span>
+                          <h3 className="text-3xl font-black text-amber-500 my-2">{revenueStats.pendingRevenue} ج.م</h3>
+                          <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2.5 py-1 rounded-lg border border-amber-500/20">مع المناديب والشركاء</span>
+                        </div>
+
+                        <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>متوسط قيمة الطلب</span>
+                          <h3 className="text-3xl font-black text-sky-500 my-2">{revenueStats.avgOrderValue} ج.م</h3>
+                          <span className="text-[10px] bg-sky-500/10 text-sky-500 px-2.5 py-1 rounded-lg border border-sky-500/20">معدل العميل</span>
                         </div>
                       </div>
                     </div>
-                  )} */}
+                  )}
 
-                  {/* Orders Tab - مع إضافة زر الإجراءات وحذف الطلب */}
                   {adminTab === 'orders' && (
                     <div className="space-y-6">
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-800">
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <div className={`flex justify-between items-center mb-6 pb-4 border-b ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                           <div>
-                            <h3 className="font-bold text-sm">إدارة الأوامر والطلبات الحية ({orders.length})</h3>
-                            <p className="text-[11px] text-slate-400">يمكنك تحديث حالة أي طلب أو حذفه فوراً</p>
+                            <h3 className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-slate-900'}`}>إدارة الأوامر والطلبات المباشرة ({orders.length})</h3>
+                            <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>تحديث ألوان وحالات الطلبات وحذفها فوراً</p>
                           </div>
-                          <span className="text-xs bg-amber-400/10 text-amber-400 border border-amber-400/20 px-3 py-1 rounded-xl font-bold flex items-center gap-1.5">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin"/>
-                            استقبال لحظي
-                          </span>
                         </div>
 
                         <div className="overflow-x-auto">
                           <table className="w-full text-right text-xs">
                             <thead>
-                              <tr className="border-b border-slate-800 text-slate-400">
+                              <tr className={`border-b ${darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
                                 <th className="py-3 px-2">رقم الطلب</th>
                                 <th className="py-3 px-2">العميل والهاتف</th>
                                 <th className="py-3 px-2">العنوان</th>
@@ -791,46 +885,45 @@ export default function App() {
                                 <th className="py-3 px-2">المنتجات</th>
                                 <th className="py-3 px-2">الإجمالي</th>
                                 <th className="py-3 px-2">الحالة</th>
-                                <th className="py-3 px-2 text-center">إجراءات الأدمن</th>
+                                <th className="py-3 px-2 text-center">إجراءات</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/50">
                               {orders.map((ord) => (
-                                <tr key={ord.id} className="hover:bg-slate-800/20 transition-colors">
-                                  <td className="py-3.5 px-2 font-bold text-amber-400">{ord.id}</td>
+                                <tr key={ord.id} className="hover:bg-slate-800/10 transition-colors">
+                                  <td className="py-3.5 px-2 font-bold text-blue-500">{ord.id}</td>
                                   <td className="py-3.5 px-2">
                                     <div className="font-bold">{ord.customerName}</div>
-                                    <div className="text-[10px] text-slate-400">{ord.phone}</div>
+                                    <div className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{ord.phone}</div>
                                   </td>
-                                  <td className="py-3.5 px-2 text-slate-300 max-w-[140px] truncate">{ord.address}</td>
-                                  <td className="py-3.5 px-2 font-bold text-amber-300/80">{ord.paymentMethod}</td>
-                                  <td className="py-3.5 px-2 text-slate-300">
+                                  <td className="py-3.5 px-2 max-w-[140px] truncate">{ord.address}</td>
+                                  <td className="py-3.5 px-2 font-bold text-blue-400">{ord.paymentMethod}</td>
+                                  <td className="py-3.5 px-2">
                                     {ord.items ? ord.items.map((it, idx) => (
-                                      <div key={idx} className="text-[11px]">{it.name} <span className="text-amber-400 font-bold">({it.qty}x)</span></div>
+                                      <div key={idx} className="text-[11px]">{it.name} <span className="text-blue-500 font-bold">({it.qty}x)</span></div>
                                     )) : `${ord.itemsCount} عناصر`}
                                   </td>
-                                  <td className="py-3.5 px-2 font-black text-[#D4AF37]">{ord.total} ج.م</td>
+                                  <td className="py-3.5 px-2 font-black text-emerald-500">{ord.total} ج.م</td>
                                   <td className="py-3.5 px-2">
                                     <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border ${
                                       ord.status === 'مكتمل' || ord.status === 'تم الدفع (إلكتروني)' 
-                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
                                         : ord.status === 'قيد التوصيل'
-                                        ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                                        ? 'bg-sky-500/10 text-sky-500 border-sky-500/20'
                                         : ord.status === 'ملغي'
-                                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                        ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                                        : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                                     }`}>
                                       {ord.status}
                                     </span>
                                   </td>
                                   <td className="py-3.5 px-2">
                                     <div className="flex items-center justify-center gap-1.5">
-                                      {/* قائمة زر إجراء تغيير الحالة */}
                                       <select
                                         value={ord.status}
                                         onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
                                         className={`p-1.5 rounded-xl text-[10px] font-bold border ${
-                                          darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-100 border-slate-300'
+                                          darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-100 border-slate-300 text-slate-900'
                                         }`}
                                       >
                                         <option value="قيد الانتظار">قيد الانتظار</option>
@@ -839,10 +932,9 @@ export default function App() {
                                         <option value="ملغي">ملغي</option>
                                       </select>
 
-                                      {/* زر حذف الطلب */}
                                       <button 
                                         onClick={() => handleDeleteOrder(ord.id)}
-                                        className="p-1.5 text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 rounded-xl hover:scale-105 transition-all"
+                                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 rounded-xl transition-all"
                                         title="حذف الطلب"
                                       >
                                         <Trash2 className="w-3.5 h-3.5"/>
@@ -861,128 +953,91 @@ export default function App() {
                   {/* Products Tab */}
                   {adminTab === 'products' && (
                     <div className="space-y-8">
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <div className="flex items-center gap-2 mb-6 border-b pb-4 border-slate-800">
-                          <Plus className="w-5 h-5 text-amber-400"/>
-                          <h3 className="font-bold text-sm">إضافة منتج جديد</h3>
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <div className={`flex items-center gap-2 mb-6 border-b pb-4 ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+                          <Plus className="w-5 h-5 text-blue-500"/>
+                          <h3 className={`font-bold text-sm ${darkMode ? 'text-white' : 'text-slate-900'}`}>إضافة منتج أو خدمة جديدة للمتجر</h3>
                         </div>
 
                         <form onSubmit={handleAddProductSubmit} className="space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div>
-                              <label className="text-[11px] font-bold text-slate-400 mb-1 block">اسم المنتج *</label>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>اسم المنتج / الخدمة *</label>
                               <input
                                 type="text"
-                                placeholder="مثال: مذكرة الرياضيات"
+                                placeholder="مثال: كتاب خارجي أو كود"
                                 required
                                 value={newProduct.name}
                                 onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                               />
                             </div>
 
                             <div>
-                              <label className="text-[11px] font-bold text-slate-400 mb-1 block">السعر (ج.م) *</label>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>السعر (ج.م) *</label>
                               <input
                                 type="number"
-                                placeholder="85"
+                                placeholder="120"
                                 required
                                 value={newProduct.price}
                                 onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-300 text-slate-900'}`}
                               />
                             </div>
 
                             <div>
-                              <label className="text-[11px] font-bold text-slate-400 mb-1 block">الكتالوج *</label>
+                              <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>القسم *</label>
                               <select
                                 value={newProduct.category}
                                 onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                               >
                                 {categories.map((c) => (
                                   <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
                               </select>
                             </div>
-
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-400 mb-1 block">رابط صورة المنتج (URL)</label>
-                              <input
-                                type="url"
-                                placeholder="https://..."
-                                value={newProduct.image}
-                                onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-400 mb-1 block">الشارة (Badge)</label>
-                              <input
-                                type="text"
-                                placeholder="الأكثر مبيعاً"
-                                value={newProduct.badge}
-                                onChange={(e) => setNewProduct({ ...newProduct, badge: e.target.value })}
-                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-400 mb-1 block">حالة التوفر</label>
-                              <select
-                                value={newProduct.inStock ? 'true' : 'false'}
-                                onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.value === 'true' })}
-                                className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                              >
-                                <option value="true">متوفر في المخزون</option>
-                                <option value="false">غير متوفر</option>
-                              </select>
-                            </div>
                           </div>
 
                           <div>
-                            <label className="text-[11px] font-bold text-slate-400 mb-1 block">وصف المنتج</label>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>روابط الصور (يمكن إضافة أكثر من صورة بالفصل بينهما بفصلة أو سطر جديد)</label>
                             <textarea
                               rows="2"
-                              placeholder="تفاصيل المنتج..."
+                              placeholder="https://image1.jpg, https://image2.jpg"
+                              value={newProduct.imagesInput}
+                              onChange={(e) => setNewProduct({ ...newProduct, imagesInput: e.target.value })}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+                            />
+                          </div>
+
+                          <div>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>وصف المنتج</label>
+                            <textarea
+                              rows="2"
+                              placeholder="مواصفات أو مميزات المنتج..."
                               value={newProduct.description}
                               onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                             />
                           </div>
 
                           <button 
                             type="submit" 
-                            className="py-3.5 px-8 bg-amber-400 text-black font-black text-xs rounded-2xl hover:bg-amber-300 hover:scale-[1.02] transition-all shadow-lg shadow-amber-400/10"
+                            className="py-3.5 px-8 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-xs rounded-2xl hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
                           >
-                            نشر المنتج
+                            نشر المنتج بالمتجر
                           </button>
                         </form>
                       </div>
 
-                      {/* Products List Table */}
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                          <h3 className="font-bold text-sm">المنتجات الحالية ({products.length})</h3>
-                          <div className="relative w-full sm:w-64">
-                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-                            <input
-                              type="text"
-                              placeholder="بحث عن منتج..."
-                              value={adminSearchTerm}
-                              onChange={(e) => setAdminSearchTerm(e.target.value)}
-                              className={`w-full pr-9 pl-3 py-2 border rounded-xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                            />
-                          </div>
-                        </div>
-
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>المنتجات المعروضة ({products.length})</h3>
                         <div className="overflow-x-auto">
                           <table className="w-full text-right text-xs">
                             <thead>
-                              <tr className="border-b border-slate-800 text-slate-400">
+                              <tr className={`border-b ${darkMode ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
                                 <th className="py-3 px-2">المنتج</th>
-                                <th className="py-3 px-2">الكتالوج</th>
+                                <th className="py-3 px-2">القسم</th>
                                 <th className="py-3 px-2">السعر</th>
                                 <th className="py-3 px-2">الحالة</th>
                                 <th className="py-3 px-2">حذف</th>
@@ -993,24 +1048,24 @@ export default function App() {
                                 <tr key={p.id}>
                                   <td className="py-3 px-2">
                                     <div className="flex items-center gap-3">
-                                      <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded-xl border border-slate-800" />
+                                      <img src={p.image || p.images?.[0]} alt={p.name} className="w-10 h-10 object-cover rounded-xl border border-slate-700" />
                                       <span className="font-bold">{p.name}</span>
                                     </div>
                                   </td>
                                   <td className="py-3 px-2 text-slate-400">{categories.find(c => String(c.id) === String(p.category))?.name || 'عام'}</td>
-                                  <td className="py-3 px-2 font-black text-[#D4AF37]">{p.price} ج.م</td>
+                                  <td className="py-3 px-2 font-black text-blue-500">{p.price} ج.م</td>
                                   <td className="py-3 px-2">
                                     <button 
                                       onClick={() => toggleStockStatus(p.id)}
                                       className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all ${
-                                        p.inStock ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                        p.inStock ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
                                       }`}
                                     >
-                                      {p.inStock ? 'متوفر' : 'غير متوفر'}
+                                      {p.inStock ? 'متوفر' : 'نفذت الكمية'}
                                     </button>
                                   </td>
                                   <td className="py-3 px-2">
-                                    <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-xl hover:scale-110 transition-all">
+                                    <button onClick={() => handleDeleteProduct(p.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all">
                                       <Trash2 className="w-4 h-4"/>
                                     </button>
                                   </td>
@@ -1023,31 +1078,30 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Categories Tab */}
                   {adminTab === 'categories' && (
                     <div className="space-y-6">
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <h3 className="font-bold text-sm mb-4">إضافة كتالوج جديد</h3>
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>إضافة قسم جديد لمتجر SEC</h3>
                         <form onSubmit={handleAddCategory} className="flex gap-3">
                           <input
                             type="text"
-                            placeholder="اسم الكتالوج الجديد..."
+                            placeholder="اسم القسم الجديد..."
                             required
                             value={newCategoryName}
                             onChange={(e) => setNewCategoryName(e.target.value)}
-                            className={`flex-1 p-3.5 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                            className={`flex-1 p-3.5 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                           />
-                          <button type="submit" className="py-3.5 px-6 bg-amber-400 text-black font-bold text-xs rounded-2xl hover:bg-amber-300 hover:scale-105 transition-all">إضافة</button>
+                          <button type="submit" className="py-3.5 px-6 bg-blue-600 text-white font-bold text-xs rounded-2xl hover:bg-blue-500 transition-all">إضافة القسم</button>
                         </form>
                       </div>
 
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <h3 className="font-bold text-sm mb-4">الكتالوجات الحالية ({categories.length})</h3>
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>الأقسام الحالية ({categories.length})</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {categories.map((cat) => (
                             <div key={cat.id} className={`p-4 rounded-2xl border flex justify-between items-center ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                               <span className="font-bold text-xs">{cat.name}</span>
-                              <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-xl hover:scale-110 transition-all">
+                              <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all">
                                 <Trash2 className="w-4 h-4"/>
                               </button>
                             </div>
@@ -1057,64 +1111,38 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Complaints Tab */}
                   {adminTab === 'complaints' && (
                     <div className="space-y-6">
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <h3 className="font-bold text-sm mb-4">صندوق الشكاوى والرسائل ({complaints.length})</h3>
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>صندوق الرسائل والاستفسارات ({complaints.length})</h3>
                         <div className="space-y-3">
-                          {complaints.length === 0 ? (
-                            <p className="text-slate-500 text-xs text-center py-6">لا توجد شكاوى حالياً</p>
-                          ) : (
-                            complaints.map((cmp) => (
-                              <div key={cmp.id} className={`p-4 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
-                                cmp.read ? darkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-200' : 'bg-amber-500/10 border-amber-500/30'
-                              }`}>
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h4 className="font-bold text-xs">{cmp.name || 'عميل'}</h4>
-                                    <span className="text-[10px] text-slate-400">({cmp.phone})</span>
-                                    <span className="text-[10px] text-slate-500">{cmp.date}</span>
-                                  </div>
-                                  <p className="text-xs text-slate-300">{cmp.message}</p>
+                          {complaints.map((cmp) => (
+                            <div key={cmp.id} className={`p-4 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
+                              cmp.read ? darkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-200' : 'bg-blue-500/10 border-blue-500/30'
+                            }`}>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-bold text-xs">{cmp.name || 'عميل'}</h4>
+                                  <span className={`text-[10px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>({cmp.phone})</span>
                                 </div>
-                                {!cmp.read && (
-                                  <button onClick={() => toggleComplaintRead(cmp.id)} className="py-2 px-4 bg-amber-400 text-black font-bold text-[10px] rounded-xl hover:bg-amber-300">
-                                    تحديد كـ "تمت القراءة"
-                                  </button>
-                                )}
+                                <p className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{cmp.message}</p>
                               </div>
-                            ))
-                          )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Activity Logs Tab */}
                   {adminTab === 'logs' && (
                     <div className="space-y-6">
-                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
-                        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
-                          <div className="flex items-center gap-2">
-                            <Activity className="w-5 h-5 text-amber-400"/>
-                            <h3 className="font-bold text-sm">سجل عمليات أدمن النظام (Audit Log)</h3>
-                          </div>
-                          <span className="text-xs text-slate-400 font-bold">{activityLogs.length} إجراء مُسجل</span>
-                        </div>
-
-                        <div className="space-y-3">
+                      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <h3 className={`font-bold text-sm mb-4 ${darkMode ? 'text-white' : 'text-slate-900'}`}>سجل العمليات (Logs)</h3>
+                        <div className="space-y-2">
                           {activityLogs.map((log) => (
-                            <div key={log.id} className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-                              darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                            }`}>
-                              <div className="flex items-center gap-3">
-                                <div className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-amber-400/10 text-amber-400 border border-amber-400/20 shrink-0">
-                                  {log.user}
-                                </div>
-                                <span className="text-xs font-medium text-slate-200">{log.action}</span>
-                              </div>
-                              <span className="text-[10px] text-slate-500 font-bold shrink-0">{log.timestamp}</span>
+                            <div key={log.id} className={`p-3 rounded-xl border text-xs flex justify-between ${darkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                              <span><strong className="text-blue-500">{log.user}:</strong> {log.action}</span>
+                              <span className="text-[10px] text-slate-400">{log.timestamp}</span>
                             </div>
                           ))}
                         </div>
@@ -1127,186 +1155,300 @@ export default function App() {
             )
           ) : (
 
-            /* Storefront Interface */
             <>
-              <section className="py-12 px-6 text-center border-b border-slate-800/60 relative">
-                <div className="max-w-2xl mx-auto">
-                  <h2 className="text-3xl font-black mb-3">
-                    متجر <span className="text-[#D4AF37]">SEC</span> التعليمي
-                  </h2>
-                  <p className="text-xs text-slate-400 mb-6">احصل على المذكرات المستلزمات التعليمية بسهولة</p>
-                  
-                  <div className="relative max-w-md mx-auto">
-                    <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-                    <input
-                      type="text"
-                      placeholder="ابحث عن المذكرة أو المنتج..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className={`w-full pr-11 pl-4 py-3 border rounded-2xl text-xs focus:outline-none focus:border-[#D4AF37] ${
-                        darkMode ? 'bg-[#0f172a] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-                      }`}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className="max-w-7xl mx-auto px-4 md:px-8 py-10 relative z-10">
-                <div className="flex flex-wrap justify-center gap-2 mb-10">
-                  <button
-                    onClick={() => setSelectedCategory('all')}
-                    className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all hover:scale-105 ${
-                      selectedCategory === 'all' 
-                        ? 'bg-amber-400 text-black font-black shadow-lg shadow-amber-400/20' 
-                        : darkMode ? 'bg-[#0f172a] text-slate-300 border border-slate-800' : 'bg-white text-slate-700 border border-slate-200'
+              {selectedProduct ? (
+                <div className="max-w-5xl mx-auto px-4 md:px-8 py-8">
+                  <button 
+                    onClick={() => setSelectedProduct(null)}
+                    className={`mb-6 py-2.5 px-4 rounded-xl border font-bold text-xs flex items-center gap-2 transition-all ${
+                      darkMode ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    الكل ({products.length})
+                    <ArrowRight className="w-4 h-4"/>
+                    <span>الرجوع للمتجر</span>
                   </button>
 
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setSelectedCategory(cat.id)}
-                      className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all hover:scale-105 ${
-                        String(selectedCategory) === String(cat.id) 
-                          ? 'bg-amber-400 text-black font-black shadow-lg shadow-amber-400/20' 
-                          : darkMode ? 'bg-[#0f172a] text-slate-300 border border-slate-800' : 'bg-white text-slate-700 border border-slate-200'
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-
-                {filteredProducts.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400 text-xs">
-                    <Package className="w-10 h-10 mx-auto mb-2 opacity-50"/>
-                    لا توجد منتجات مضافة حالياً.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {filteredProducts.map((product) => (
-                      <div 
-                        key={product.id} 
-                        className={`border rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-amber-400/40 ${
-                          darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <div className="h-44 rounded-2xl mb-4 overflow-hidden bg-slate-900 border border-slate-800 relative group">
-                            <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                            {product.badge && (
-                              <span className="absolute top-3 right-3 bg-amber-400 text-black text-[10px] font-black px-2.5 py-1 rounded-xl shadow-md">
-                                {product.badge}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 text-amber-400 mb-1">
-                            <Star className="w-3.5 h-3.5 fill-amber-400"/>
-                            <span className="text-[11px] font-bold text-slate-400">{product.rating || 5}.0</span>
-                          </div>
-                          <h3 className={`font-bold text-sm mb-1.5 ${darkMode ? 'text-white' : 'text-slate-900'}`}>{product.name}</h3>
-                          <p className={`text-[11px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{product.description}</p>
+                  <div className={`p-6 md:p-8 rounded-3xl border shadow-2xl ${
+                    darkMode ? 'bg-[#0b1329] border-slate-800' : 'bg-white border-slate-200'
+                  }`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div>
+                        <div className="h-80 md:h-96 rounded-2xl overflow-hidden border border-slate-700/50 mb-4 bg-black/20">
+                          <img 
+                            src={(selectedProduct.images && selectedProduct.images[activeImageIndex]) || selectedProduct.image} 
+                            alt={selectedProduct.name} 
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[#D4AF37] font-black text-base">{product.price} ج.م</span>
-                            {!product.inStock && <span className="text-rose-400 text-[10px] font-bold">غير متوفر</span>}
+                        
+                        {selectedProduct.images && selectedProduct.images.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto pb-2">
+                            {selectedProduct.images.map((img, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setActiveImageIndex(idx)}
+                                className={`w-16 h-16 rounded-xl border overflow-hidden shrink-0 transition-all ${
+                                  activeImageIndex === idx ? 'border-blue-500 scale-105 ring-2 ring-blue-500/30' : 'border-slate-700 opacity-60'
+                                }`}
+                              >
+                                <img src={img} alt="" className="w-full h-full object-cover"/>
+                              </button>
+                            ))}
                           </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col justify-between">
+                        <div>
+                          <span className="text-xs font-bold px-3 py-1 bg-blue-600/10 text-blue-500 rounded-lg border border-blue-500/20 mb-3 inline-block">
+                            {categories.find(c => String(c.id) === String(selectedProduct.category))?.name || 'عام'}
+                          </span>
+                          <h1 className="text-2xl md:text-3xl font-black mb-4">{selectedProduct.name}</h1>
+                          
+                          <div className="mb-6">
+                            <h3 className="text-xs font-bold text-slate-400 mb-2">وصف المنتج:</h3>
+                            <p className={`text-sm leading-relaxed ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                              {selectedProduct.description || 'لا يوجد وصف تفصيلي متوفر لهذا المنتج حالياً.'}
+                            </p>
+                          </div>
+
+                          <div className="text-3xl font-black text-blue-500 mb-6">{selectedProduct.price} ج.م</div>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t border-slate-800">
                           <button
-                            onClick={() => addToCart(product)}
-                            disabled={!product.inStock}
-                            className={`w-full py-3 font-bold text-xs rounded-2xl transition-all hover:scale-[1.02] ${
-                              product.inStock 
-                                ? 'bg-amber-400 text-black hover:bg-amber-300 shadow-md shadow-amber-400/10' 
+                            onClick={() => addToCart(selectedProduct)}
+                            disabled={!selectedProduct.inStock}
+                            className={`w-full py-4 font-black text-sm rounded-2xl transition-all shadow-xl ${
+                              selectedProduct.inStock 
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white shadow-blue-500/20' 
                                 : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                             }`}
                           >
-                            {product.inStock ? 'إضافة للسلة' : 'غير متوفر'}
+                            {selectedProduct.inStock ? 'إضافة للسلة وإتمام الشراء 🛒' : 'نفذت الكمية'}
                           </button>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                )}
-              </section>
+                </div>
+              ) : (
+                <>
+                  <section className={`py-10 px-4 md:px-8 text-center border-b relative ${
+                    darkMode ? 'bg-gradient-to-b from-[#0b1329] to-[#080d1a] border-slate-800/80' : 'bg-gradient-to-b from-blue-50 to-slate-50 border-slate-200'
+                  }`}>
+                    <div className="max-w-3xl mx-auto">
+                      <h2 className={`text-3xl md:text-4xl font-black mb-3 ${darkMode ? 'bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent' : 'text-slate-900'}`}>
+                        أهلاً بك في متجر SEC
+                      </h2>
+                      <p className={`text-xs md:text-sm mb-6 max-w-xl mx-auto ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                        وجهتك الموثوقة للحصول على الكتب، الأكواد، المستلزمات والحلول التعليمية بأفضل الأسعار.
+                      </p>
+                      
+                      <div className="relative max-w-lg mx-auto">
+                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
+                        <input
+                          type="text"
+                          placeholder="ابحث عن كتاب، كود، أو مستلزمات..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className={`w-full pr-11 pl-4 py-3.5 border rounded-2xl text-xs focus:outline-none focus:border-blue-500 transition-all ${
+                            darkMode ? 'bg-[#0e172e] border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900 shadow-sm'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </section>
 
-              {/* Floating Complaints Button */}
+                  {banners.length > 0 && (
+                    <section className="max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-4">
+                      <div className={`relative overflow-hidden rounded-3xl border shadow-2xl ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+                        <AnimatePresence mode="wait">
+                          <motion.div
+                            key={activeBanner}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.4 }}
+                            onClick={() => handleBannerClick(banners[activeBanner])}
+                            className={`relative rounded-3xl cursor-pointer text-white min-h-[180px] md:min-h-[240px] flex flex-col justify-end p-6 md:p-8 ${
+                              banners[activeBanner].imageUrl ? 'bg-cover bg-center' : `bg-gradient-to-r ${banners[activeBanner].bgGradient || 'from-blue-900 to-indigo-900'}`
+                            }`}
+                            style={banners[activeBanner].imageUrl ? { backgroundImage: `url(${banners[activeBanner].imageUrl})` } : {}}
+                          >
+                            {banners[activeBanner].imageUrl && (
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent rounded-3xl" />
+                            )}
+
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 z-10 relative">
+                              <div className="space-y-2 max-w-xl">
+                                {banners[activeBanner].badge && (
+                                  <span className="px-3 py-1 bg-white/20 backdrop-blur-md text-white rounded-full text-[11px] font-black border border-white/20 inline-block">
+                                    {banners[activeBanner].badge}
+                                  </span>
+                                )}
+                                {banners[activeBanner].title && (
+                                  <h3 className="text-xl md:text-2xl font-black text-white leading-snug">
+                                    {banners[activeBanner].title}
+                                  </h3>
+                                )}
+                                {banners[activeBanner].subtitle && (
+                                  <p className="text-xs text-slate-100 leading-relaxed">
+                                    {banners[activeBanner].subtitle}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-3 z-10 shrink-0">
+                                <button className="px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-2xl shadow-lg transition-all flex items-center gap-2">
+                                  <span>تصفح العرض الآن</span>
+                                  {banners[activeBanner].linkUrl ? <ExternalLink className="w-4 h-4"/> : <ChevronRight className="w-4 h-4 rotate-180"/>}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                              {banners.map((_, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={(e) => { e.stopPropagation(); setActiveBanner(idx); }}
+                                  className={`h-1.5 rounded-full transition-all ${
+                                    activeBanner === idx ? 'w-6 bg-blue-400' : 'w-2 bg-white/40'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </motion.div>
+                        </AnimatePresence>
+                      </div>
+                    </section>
+                  )}
+
+                  <section className="max-w-7xl mx-auto px-4 md:px-8 py-8">
+                    <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <h3 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                          {selectedCategory === 'all' ? 'التصنيفات' : `التصنيف: ${categories.find(c => String(c.id) === String(selectedCategory))?.name || ''}`}
+                        </h3>
+                        <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>اختر التصنيف لتصفح المنتجات المتاحة</p>
+                      </div>
+
+                      {selectedCategory !== 'all' && (
+                        <button
+                          onClick={() => setSelectedCategory('all')}
+                          className="px-4 py-2 bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white font-bold text-xs rounded-xl border border-blue-500/20 transition-all flex items-center gap-1.5"
+                        >
+                          <span>عرض كل المنتجات</span>
+                          <ArrowLeft className="w-3.5 h-3.5"/>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                      <button
+                        onClick={() => setSelectedCategory('all')}
+                        className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all hover:scale-105 ${
+                          selectedCategory === 'all'
+                            ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/30'
+                            : darkMode ? 'bg-[#0d1527] border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-800'
+                        }`}
+                      >
+                        <Layers className="w-6 h-6 text-blue-500"/>
+                        <span className="text-xs font-bold">الكل</span>
+                      </button>
+
+                      {categories.map((cat) => {
+                        const active = String(selectedCategory) === String(cat.id);
+                        const IconComponent = cat.icon || Sparkles;
+                        return (
+                          <button
+                            key={cat.id}
+                            onClick={() => setSelectedCategory(cat.id)}
+                            className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all hover:scale-105 ${
+                              active
+                                ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/30'
+                                : darkMode ? 'bg-[#0d1527] border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <IconComponent className="w-6 h-6 text-indigo-500"/>
+                            <span className="text-xs font-bold text-center">{cat.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="max-w-7xl mx-auto px-4 md:px-8 py-8">
+                    <div className={`flex justify-between items-center mb-8 pb-3 border-b ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+                      <h3 className={`text-lg font-black flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                        <Package className="w-5 h-5 text-blue-500"/>
+                        <span>المنتجات المعروضة ({filteredProducts.length})</span>
+                      </h3>
+                    </div>
+
+                    {filteredProducts.length === 0 ? (
+                      <div className={`text-center py-16 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <Package className="w-10 h-10 mx-auto mb-2 opacity-50"/>
+                        لا توجد منتجات متوفرة حالياً لهذا التصنيف.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredProducts.map((product) => (
+                          <div 
+                            key={product.id} 
+                            onClick={() => { setSelectedProduct(product); setActiveImageIndex(0); }}
+                            className={`border rounded-3xl p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-blue-500/40 ${
+                              darkMode ? 'bg-[#0d1527] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+                            }`}
+                          >
+                            <div>
+                              <div className={`h-48 rounded-2xl mb-4 overflow-hidden border relative group ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+                                <img src={product.image || product.images?.[0]} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                {product.badge && (
+                                  <span className="absolute top-3 right-3 bg-blue-600 text-white text-[10px] font-black px-2.5 py-1 rounded-xl shadow-md">
+                                    {product.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className={`font-bold text-sm mb-1.5 ${darkMode ? 'text-white' : 'text-slate-900'}`}>{product.name}</h3>
+                              <p className={`text-[11px] mb-4 line-clamp-2 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{product.description}</p>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-blue-500 font-black text-lg">{product.price} ج.م</span>
+                                {!product.inStock && <span className="text-rose-500 text-[10px] font-bold">غير متوفر</span>}
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                                disabled={!product.inStock}
+                                className={`w-full py-3 font-bold text-xs rounded-2xl transition-all hover:scale-[1.02] ${
+                                  product.inStock 
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:brightness-110 shadow-lg shadow-blue-600/20' 
+                                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                }`}
+                              >
+                                {product.inStock ? 'إضافة للسلة' : 'غير متوفر حالياً'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+
               <button
                 onClick={() => setIsComplaintOpen(true)}
-                className="fixed bottom-6 right-6 z-40 p-4 bg-gradient-to-r from-amber-400 to-[#D4AF37] text-black rounded-full shadow-2xl hover:scale-110 transition-all border-2 border-white/20 group"
+                className="fixed bottom-6 right-6 z-40 p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-2xl hover:scale-110 transition-all border-2 border-white/20"
                 title="إرسال شكوى أو استفسار"
               >
                 <MessageSquare className="w-6 h-6"/>
               </button>
 
-              {/* Complaints Modal */}
-              <AnimatePresence>
-                {isComplaintOpen && (
-                  <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    <motion.div 
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                      className={`w-full max-w-md rounded-3xl p-6 border shadow-2xl ${
-                        darkMode ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="w-5 h-5 text-amber-400"/>
-                          <h3 className="font-bold text-sm">إرسال شكوى أو اقتراح</h3>
-                        </div>
-                        <button onClick={() => setIsComplaintOpen(false)}><X className="w-5 h-5 text-slate-400"/></button>
-                      </div>
-
-                      <form onSubmit={handleSendComplaint} className="space-y-4">
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">الاسم</label>
-                          <input
-                            type="text"
-                            placeholder="اسمك (اختياري)"
-                            value={newComplaint.name}
-                            onChange={(e) => setNewComplaint({ ...newComplaint, name: e.target.value })}
-                            className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">رقم الهاتف *</label>
-                          <input
-                            type="tel"
-                            placeholder="010XXXXXXXX"
-                            required
-                            value={newComplaint.phone}
-                            onChange={(e) => setNewComplaint({ ...newComplaint, phone: e.target.value })}
-                            className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">الرسالة / الشكوى *</label>
-                          <textarea
-                            rows="3"
-                            placeholder="اكتب تفاصيل الشكوى أو الاقتراح..."
-                            required
-                            value={newComplaint.message}
-                            onChange={(e) => setNewComplaint({ ...newComplaint, message: e.target.value })}
-                            className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-                          />
-                        </div>
-                        <button type="submit" className="w-full py-3.5 bg-amber-400 text-black font-black text-xs rounded-2xl hover:bg-amber-300 transition-all flex items-center justify-center gap-2">
-                          <Send className="w-4 h-4"/>
-                          <span>إرسال الرسالة</span>
-                        </button>
-                      </form>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
             </>
           )}
 
-          {/* Cart & Multi-Option Checkout Drawer */}
           <AnimatePresence>
             {isCartOpen && (
               <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex justify-end">
@@ -1316,15 +1458,15 @@ export default function App() {
                   exit={{ x: '100%' }}
                   transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                   className={`w-full max-w-md h-full p-6 flex flex-col justify-between overflow-y-auto ${
-                    darkMode ? 'bg-[#0f172a] text-slate-100' : 'bg-white text-slate-900'
+                    darkMode ? 'bg-[#0b1329] text-slate-100' : 'bg-white text-slate-900'
                   }`}
                 >
                   <div>
-                    <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+                    <div className={`flex justify-between items-center pb-4 border-b ${darkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                       <div className="flex items-center gap-2">
-                        <ShoppingCart className="w-5 h-5 text-amber-400"/>
+                        <ShoppingCart className="w-5 h-5 text-blue-500"/>
                         <h3 className="font-bold text-sm">
-                          {checkoutStep === 'cart' ? 'سلة التسوق' : 'إتمام المشتريات والدفع'}
+                          {checkoutStep === 'cart' ? 'سلة تسوق متجر SEC' : 'إتمام المشتريات والدفع'}
                         </h3>
                       </div>
                       <button onClick={() => { setIsCartOpen(false); setCheckoutStep('cart'); }}>
@@ -1335,9 +1477,9 @@ export default function App() {
                     {checkoutStep === 'cart' ? (
                       <div className="py-4 space-y-3">
                         {cart.length === 0 ? (
-                          <div className="text-center py-16 text-slate-500 text-xs">
+                          <div className={`text-center py-16 text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
                             <ShoppingBag className="w-12 h-12 mx-auto mb-2 opacity-30"/>
-                            السلة فارغة حالياً
+                            سلة المشتريات فارغة حالياً
                           </div>
                         ) : (
                           cart.map((item) => (
@@ -1345,20 +1487,20 @@ export default function App() {
                               darkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
                             }`}>
                               <div className="flex items-center gap-3">
-                                <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-xl border border-slate-800" />
+                                <img src={item.image || item.images?.[0]} alt={item.name} className="w-12 h-12 object-cover rounded-xl border border-slate-700" />
                                 <div>
                                   <h4 className="text-xs font-bold mb-1">{item.name}</h4>
-                                  <span className="text-xs text-[#D4AF37] font-black">{item.price} ج.م</span>
+                                  <span className="text-xs text-blue-500 font-black">{item.price} ج.م</span>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1.5 border border-slate-800 rounded-xl p-1 bg-black/20">
-                                  <button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center font-black rounded-lg hover:bg-slate-800 text-xs">-</button>
+                                <div className={`flex items-center gap-1.5 border rounded-xl p-1 ${darkMode ? 'border-slate-800 bg-black/20' : 'border-slate-300 bg-white'}`}>
+                                  <button onClick={() => updateCartQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center font-black rounded-lg text-xs">-</button>
                                   <span className="text-xs font-bold px-1">{item.qty}</span>
-                                  <button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center font-black rounded-lg hover:bg-slate-800 text-xs">+</button>
+                                  <button onClick={() => updateCartQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center font-black rounded-lg text-xs">+</button>
                                 </div>
-                                <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-xl">
+                                <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-xl">
                                   <Trash2 className="w-4 h-4"/>
                                 </button>
                               </div>
@@ -1367,115 +1509,60 @@ export default function App() {
                         )}
                       </div>
                     ) : (
-                      /* Checkout Form Step */
                       <form id="checkout-form" onSubmit={handleCompleteOrder} className="py-4 space-y-5">
                         <div className="space-y-3">
-                          <h4 className="text-xs font-bold text-amber-400">1. تفاصيل العميل والعنوان</h4>
+                          <h4 className="text-xs font-bold text-blue-500">1. بيانات العميل والتوصيل</h4>
                           <div>
-                            <label className="text-[11px] font-bold text-slate-400 block mb-1">الاسم بالكامل *</label>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>الاسم بالكامل *</label>
                             <input
                               type="text"
                               required
-                              placeholder="أحمد محمد"
+                              placeholder="أحمد علي"
                               value={customerInfo.name}
                               onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                             />
                           </div>
 
                           <div>
-                            <label className="text-[11px] font-bold text-slate-400 block mb-1">رقم الهاتف للتواصل *</label>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>رقم الهاتف *</label>
                             <input
                               type="tel"
                               required
                               placeholder="010XXXXXXXX"
                               value={customerInfo.phone}
                               onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
-                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                             />
                           </div>
 
                           <div>
-                            <label className="text-[11px] font-bold text-slate-400 block mb-1">عنوان التوصيل التفصيلي *</label>
+                            <label className={`text-[11px] font-bold ${darkMode ? 'text-slate-400' : 'text-slate-600'} block mb-1`}>العنوان بالتفصيل *</label>
                             <input
                               type="text"
                               required
-                              placeholder="المحافظة - المنطقة - اسم الشارع"
+                              placeholder="المحافظة - المنطقة - الشارع"
                               value={customerInfo.address}
                               onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
-                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
+                              className={`w-full p-3 border rounded-2xl text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                             />
-                          </div>
-                        </div>
-
-                        {/* الخيارات الثلاثة للدفع */}
-                        <div className="space-y-3">
-                          <h4 className="text-xs font-bold text-amber-400">2. اختر وسيلة الدفع المناسبة</h4>
-
-                          <div 
-                            onClick={() => setPaymentMethod('cod')}
-                            className={`p-3.5 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
-                              paymentMethod === 'cod' ? 'border-amber-400 bg-amber-400/10' : darkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Truck className="w-5 h-5 text-amber-400"/>
-                              <div>
-                                <h5 className="text-xs font-bold">الدفع عند الاستلام (COD)</h5>
-                                <p className="text-[10px] text-slate-400">الدفع نقداً عند توصيل الطلب إلى باب المنزل</p>
-                              </div>
-                            </div>
-                            <input type="radio" checked={paymentMethod === 'cod'} onChange={() => {}} className="accent-amber-400"/>
-                          </div>
-
-                          <div 
-                            onClick={() => setPaymentMethod('card')}
-                            className={`p-3.5 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
-                              paymentMethod === 'card' ? 'border-amber-400 bg-amber-400/10' : darkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <CreditCard className="w-5 h-5 text-amber-400"/>
-                              <div>
-                                <h5 className="text-xs font-bold">ديبت / كريديت كارت / وسيلة محلية</h5>
-                                <p className="text-[10px] text-slate-400">دفع إلكتروني آمن عبر الفيزا أو المحافظ الإلكترونية</p>
-                              </div>
-                            </div>
-                            <input type="radio" checked={paymentMethod === 'card'} onChange={() => {}} className="accent-amber-400"/>
-                          </div>
-
-                          <div 
-                            onClick={() => setPaymentMethod('whatsapp')}
-                            className={`p-3.5 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
-                              paymentMethod === 'whatsapp' ? 'border-emerald-500 bg-emerald-500/10' : darkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <PhoneCall className="w-5 h-5 text-emerald-400"/>
-                              <div>
-                                <h5 className="text-xs font-bold">إتمام الطلب عبر واتساب</h5>
-                                <p className="text-[10px] text-slate-400">إرسال تفاصيل الفاتورة وتأكيدها مباشرة عبر المحادثة</p>
-                              </div>
-                            </div>
-                            <input type="radio" checked={paymentMethod === 'whatsapp'} onChange={() => {}} className="accent-emerald-400"/>
                           </div>
                         </div>
                       </form>
                     )}
                   </div>
 
-                  {/* Cart Footer */}
                   {cart.length > 0 && (
-                    <div className="pt-4 border-t border-slate-800 mt-4">
+                    <div className={`pt-4 border-t ${darkMode ? 'border-slate-800' : 'border-slate-200'} mt-4`}>
                       <div className="flex justify-between items-center text-xs mb-4 font-bold">
                         <span>إجمالي المنتجات ({cart.reduce((a, c) => a + c.qty, 0)}):</span>
-                        <span className="text-[#D4AF37] text-base font-black">{grandTotal} ج.م</span>
+                        <span className="text-blue-500 text-base font-black">{grandTotal} ج.م</span>
                       </div>
 
                       {checkoutStep === 'cart' ? (
                         <button 
                           onClick={() => setCheckoutStep('checkout')} 
-                          className="w-full py-3.5 bg-amber-400 text-black font-black rounded-2xl text-xs hover:bg-amber-300 transition-all shadow-lg shadow-amber-400/10"
+                          className="w-full py-3.5 bg-blue-600 text-white font-black rounded-2xl text-xs hover:bg-blue-500 transition-all shadow-lg"
                         >
                           المتابعة لاختيار الدفع والتوصيل 👈
                         </button>
@@ -1484,14 +1571,14 @@ export default function App() {
                           <button 
                             type="button"
                             onClick={() => setCheckoutStep('cart')}
-                            className="py-3.5 px-4 bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs hover:bg-slate-700"
+                            className="py-3.5 px-4 bg-slate-700 text-white font-bold rounded-2xl text-xs"
                           >
                             رجوع
                           </button>
                           <button 
                             type="submit"
                             form="checkout-form"
-                            className="flex-1 py-3.5 bg-gradient-to-r from-amber-400 to-[#D4AF37] text-black font-black rounded-2xl text-xs hover:brightness-110 transition-all shadow-lg shadow-amber-400/20"
+                            className="flex-1 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black rounded-2xl text-xs hover:brightness-110 transition-all shadow-lg"
                           >
                             تأكيد الطلب والدفع ({grandTotal} ج.م)
                           </button>
